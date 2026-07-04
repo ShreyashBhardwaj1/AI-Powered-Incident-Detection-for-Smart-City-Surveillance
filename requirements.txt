@@ -1,0 +1,9 @@
+fastapi==0.115.8
+uvicorn==0.34.0
+opencv-python==4.10.0.84
+ultralytics
+numpy
+pandas
+pydantic
+python-multipart
+sqlalchemy

@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart City Sentinel</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+
+<style>
+/* ── Reset & Tokens ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #080c14;
+  --surface:  #0f1623;
+  --card:     #141d2e;
+  --border:   #1e2d45;
+  --accent:   #38bdf8;
+  --pink:     #f472b6;
+  --text:     #e2e8f0;
+  --muted:    #4d6380;
+  --low:      #22c55e;
+  --medium:   #f59e0b;
+  --high:     #ef4444;
+  --critical: #a855f7;
+  --r:        12px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "header header"
+    "panel  map";
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+header h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  background: linear-gradient(120deg, var(--accent), var(--pink));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+header p { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.pulse {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--low);
+  box-shadow: 0 0 0 0 rgba(34,197,94,.6);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(34,197,94,.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0);  }
+  100% { box-shadow: 0 0 0 0   rgba(34,197,94,0);  }
+}
+
+/* ── Left Panel ───────────────────────────────────────────────── */
+#panel {
+  grid-area: panel;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+#panel::-webkit-scrollbar { width: 4px; }
+#panel::-webkit-scrollbar-track { background: transparent; }
+#panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.section {
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 14px;
+}
+
+/* Location bar */
+#loc-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11px;
+  margin-bottom: 0;
+}
+#loc-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+#loc-dot.ok    { background: var(--low); box-shadow: 0 0 6px var(--low); }
+#loc-dot.err   { background: var(--high); }
+#loc-text { flex: 1; color: var(--muted); font-size: 11px; }
+#loc-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+#loc-btn:hover { background: rgba(56,189,248,.08); }
+
+/* Upload zone */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  position: relative;
+  margin-top: 14px;
+}
+.upload-zone:hover, .upload-zone.drag {
+  border-color: var(--accent);
+  background: rgba(56,189,248,.03);
+}
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-zone .icon { font-size: 28px; }
+.upload-zone p    { color: var(--muted); font-size: 11px; margin-top: 6px; }
+#fname            { color: var(--accent); font-size: 11px; margin-top: 4px; min-height: 14px; }
+
+/* Email */
+.field-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 5px;
+  margin-top: 14px;
+}
+input[type=email] {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color .2s;
+}
+input[type=email]:focus { border-color: var(--accent); }
+
+/* Submit button */
+#submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--pink));
+  border: none;
+  border-radius: 9px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #080c14;
+  cursor: pointer;
+  transition: opacity .2s, transform .1s;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+#submit-btn:hover   { opacity: .88; }
+#submit-btn:active  { transform: scale(.98); }
+#submit-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Spinner */
+.spin {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(0,0,0,.2);
+  border-top-color: #080c14;
+  border-radius: 50%;
+  animation: spinning .65s linear infinite;
+  display: none;
+}
+@keyframes spinning { to { transform: rotate(360deg); } }
+
+/* Result section */
+#result-section { display: none; }
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.info-row:last-child { border: none; }
+.info-row .k { color: var(--muted); }
+
+.sev-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.sev-Low      { background: rgba(34,197,94,.15);  color: var(--low);      border: 1px solid var(--low);      }
+.sev-Medium   { background: rgba(245,158,11,.15); color: var(--medium);   border: 1px solid var(--medium);   }
+.sev-High     { background: rgba(239,68,68,.15);  color: var(--high);     border: 1px solid var(--high);     }
+.sev-Critical { background: rgba(168,85,247,.15); color: var(--critical); border: 1px solid var(--critical); }
+
+/* Service list */
+.svc-list { margin-top: 8px; }
+.svc-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 7px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.svc-item:hover { border-color: var(--accent); }
+.svc-item .sn   { font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.svc-item .sd   { color: var(--muted); }
+.svc-item .sl   { color: var(--accent); text-decoration: none; font-size: 10px; }
+
+.notif-ok  { color: var(--low);  font-size: 11px; margin-top: 8px; }
+.notif-no  { color: var(--muted); font-size: 11px; margin-top: 8px; }
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+
+/* ── Map ──────────────────────────────────────────────────────── */
+#map {
+  grid-area: map;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background: #0a0f1c;
+}
+
+/* Leaflet dark tile override */
+.leaflet-tile { filter: brightness(.75) saturate(.6) hue-rotate(190deg); }
+.leaflet-container { background: #0a0f1c; }
+
+/* Custom marker labels */
+.map-label {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+
+@media (max-width: 768px) {
+  body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 320px;
+    grid-template-areas: "header" "panel" "map";
+    height: auto;
+    overflow: auto;
+  }
+  #map { height: 320px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="pulse"></div>
+  <div>
+    <h1>⚡ Smart City Sentinel</h1>
+    <p>AI incident detection · live GPS · nearest services</p>
+  </div>
+</header>
+
+<!-- ── Left Panel ── -->
+<div id="panel">
+
+  <!-- Location -->
+  <div class="section">
+    <div class="section-title">📍 Live Location</div>
+    <div id="loc-bar">
+      <div id="loc-dot"></div>
+      <span id="loc-text">Not detected</span>
+      <button id="loc-btn" onclick="getLocation()">Detect</button>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="section">
+    <div class="section-title">📁 Upload File</div>
+    <div class="upload-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*,video/*" onchange="onFileChange(this)"/>
+      <div class="icon">🖼️</div>
+      <p>Photo or video — drop here or click</p>
+      <div id="fname"></div>
+    </div>
+
+    <label class="field-label" for="email-input">📧 Alert email (optional)</label>
+    <input type="email" id="email-input" placeholder="you@example.com"/>
+
+    <button id="submit-btn" onclick="submitForm()">
+      <div class="spin" id="spinner"></div>
+      <span id="btn-text">Analyse Incident</span>
+    </button>
+  </div>
+
+  <!-- Result (hidden until analysis done) -->
+  <div class="section" id="result-section">
+    <div class="section-title">🔍 Analysis Result</div>
+    <div id="result-body"></div>
+  </div>
+
+  <!-- Map legend -->
+  <div class="section">
+    <div class="section-title">🗺️ Map Legend</div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Low</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Medium</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>High</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div>Critical</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>Hospital</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f472b6"></div>Police</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Map ── -->
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+// ── Map init ──────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([20, 78], 5);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19,
+}).addTo(map);
+
+// Severity → color
+const SEV_COLOR = {
+  Low:      '#22c55e',
+  Medium:   '#f59e0b',
+  High:     '#ef4444',
+  Critical: '#a855f7',
+};
+
+function makeCircleIcon(color, size = 16) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px;height:${size}px;
+      background:${color};
+      border:2px solid #fff;
+      border-radius:50%;
+      box-shadow:0 0 8px ${color}88;
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+}
+
+let incidentMarker = null;
+const serviceMarkers = [];
+
+function clearMapMarkers() {
+  if (incidentMarker) { map.removeLayer(incidentMarker); incidentMarker = null; }
+  serviceMarkers.forEach(m => map.removeLayer(m));
+  serviceMarkers.length = 0;
+}
+
+function placeIncidentMarker(lat, lon, severity, label) {
+  const color = SEV_COLOR[severity] || '#38bdf8';
+  const icon  = makeCircleIcon(color, 22);
+  incidentMarker = L.marker([lat, lon], { icon })
+    .addTo(map)
+    .bindPopup(`
+      <b style="color:${color}">${label}</b><br/>
+      Severity: <b>${severity}</b><br/>
+      <small>${lat.toFixed(5)}, ${lon.toFixed(5)}</small>
+    `, { maxWidth: 200 })
+    .openPopup();
+}
+
+function placeServiceMarker(lat, lon, name, type, dist) {
+  const color = type === 'hospital' ? '#38bdf8' : '#f472b6';
+  const emoji = type === 'hospital' ? '🏥' : '🚔';
+  const icon  = makeCircleIcon(color, 14);
+  const m = L.marker([lat, lon], { icon })
+    .addTo(map)
+    .bindPopup(`
+      <b>${emoji} ${name}</b><br/>
+      <small>${dist} km away</small>
+    `, { maxWidth: 180 });
+  serviceMarkers.push(m);
+}
+
+// ── Geolocation ───────────────────────────────────────────────────────────
+let currentLat = null, currentLon = null;
+let userMarker = null;
+
+function getLocation() {
+  const dot  = document.getElementById('loc-dot');
+  const text = document.getElementById('loc-text');
+  const btn  = document.getElementById('loc-btn');
+  text.textContent = 'Detecting…';
+  btn.disabled = true;
+
+  if (!navigator.geolocation) {
+    text.textContent = 'Not supported';
+    dot.className = 'err';
+    btn.disabled = false;
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      currentLat = pos.coords.latitude;
+      currentLon = pos.coords.longitude;
+      dot.className = 'ok';
+      text.textContent = `${currentLat.toFixed(5)}, ${currentLon.toFixed(5)}`;
+      btn.disabled = false;
+
+      // Pan map to user
+      map.setView([currentLat, currentLon], 14);
+
+      // Small user-location pin
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.circleMarker([currentLat, currentLon], {
+        radius: 7,
+        fillColor: '#38bdf8',
+        color: '#fff',
+        weight: 2,
+        fillOpacity: 0.9,
+      }).addTo(map).bindTooltip('You are here', { permanent: false });
+    },
+    () => {
+      dot.className = 'err';
+      text.textContent = 'Permission denied — retry';
+      btn.disabled = false;
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+// ── File handling ─────────────────────────────────────────────────────────
+const zone = document.getElementById('drop-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', ()  => zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+let selectedFile = null;
+function onFileChange(inp) { if (inp.files[0]) setFile(inp.files[0]); }
+function setFile(f) {
+  selectedFile = f;
+  document.getElementById('fname').textContent = `✔ ${f.name}`;
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────
+async function submitForm() {
+  if (!selectedFile) { alert('Please select a file first.'); return; }
+  if (currentLat === null) { alert('Please detect your location first.'); return; }
+
+  const btn     = document.getElementById('submit-btn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btn-text');
+  btn.disabled  = true;
+  spinner.style.display = 'block';
+  btnText.textContent   = 'Analysing…';
+
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+  fd.append('lat',  currentLat);
+  fd.append('lon',  currentLon);
+  const email = document.getElementById('email-input').value.trim();
+  if (email) fd.append('email', email);
+
+  try {
+    const res  = await fetch('http://localhost:8000/analyze', { method: 'POST', body: fd });
+    const data = await res.json();
+    renderResult(data);
+  } catch (e) {
+    alert('Server error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent   = 'Analyse Incident';
+  }
+}
+
+// ── Render result ─────────────────────────────────────────────────────────
+function renderResult(d) {
+  const section = document.getElementById('result-section');
+  const body    = document.getElementById('result-body');
+  section.style.display = 'block';
+
+  if (d.error) {
+    body.innerHTML = `<p style="color:var(--high);font-size:12px">Error: ${d.error}</p>`;
+    return;
+  }
+
+  const sev      = d.severity || 'Unknown';
+  const mapsLink = `https://www.google.com/maps?q=${d.lat},${d.lon}`;
+
+  // ── Update map ──────────────────────────────────────────────────────
+  clearMapMarkers();
+  placeIncidentMarker(d.lat, d.lon, sev, d.type);
+  map.setView([d.lat, d.lon], 15);
+
+  const nearby = d.nearby_services || {};
+  const bounds = [[d.lat, d.lon]];
+
+  (nearby.hospitals || []).forEach(h => {
+    placeServiceMarker(h.lat, h.lon, h.name, 'hospital', h.distance_km);
+    bounds.push([h.lat, h.lon]);
+  });
+  (nearby.police || []).forEach(p => {
+    placeServiceMarker(p.lat, p.lon, p.name, 'police', p.distance_km);
+    bounds.push([p.lat, p.lon]);
+  });
+
+  if (bounds.length > 1) {
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+
+  // ── Build service HTML ──────────────────────────────────────────────
+  const buildSvc = (arr, type) => {
+    if (!arr || arr.length === 0)
+      return `<div style="color:var(--muted);font-size:11px;padding:4px 0">None found within 3 km</div>`;
+    return arr.map(s => `
+      <div class="svc-item" onclick="map.setView([${s.lat},${s.lon}],17)">
+        <div class="sn">${type === 'hospital' ? '🏥' : '🚔'} ${s.name}</div>
+        <div class="sd">${s.distance_km} km away ·
+          <a class="sl" href="https://www.google.com/maps?q=${s.lat},${s.lon}"
+             target="_blank" onclick="event.stopPropagation()">Maps ↗</a>
+        </div>
+      </div>`).join('');
+  };
+
+  const notifLine = d.notification_sent
+    ? `<p class="notif-ok">✔ Alert email sent.</p>`
+    : (document.getElementById('email-input').value.trim()
+        ? `<p class="notif-no">⚠ Email not sent — check SMTP config.</p>`
+        : '');
+
+  body.innerHTML = `
+    <div class="info-row">
+      <span class="k">Type</span>
+      <span>${d.type}</span>
+    </div>
+    <div class="info-row">
+      <span class="k">Severity</span>
+      <span class="sev-badge sev-${sev}">${sev}</span>
+    </div>
+    <div class="info-row">
+      <span class="k">Location</span>
+      <a href="${mapsLink}" target="_blank" style="color:var(--accent);font-size:11px">
+        ${d.lat.toFixed(4)}, ${d.lon.toFixed(4)} ↗
+      </a>
+    </div>
+    ${d.report ? `<div class="info-row"><span class="k">Report</span><a href="${d.report}" style="color:var(--accent);font-size:11px">Download ↗</a></div>` : ''}
+    ${notifLine}
+
+    <div style="margin-top:14px;margin-bottom:6px;font-size:11px;color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase">
+      🏥 Hospitals
+    </div>
+    <div class="svc-list">${buildSvc(nearby.hospitals, 'hospital')}</div>
+
+    <div style="margin-top:10px;margin-bottom:6px;font-size:11px;color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase">
+      🚔 Police Stations
+    </div>
+    <div class="svc-list">${buildSvc(nearby.police, 'police')}</div>
+  `;
+
+  section.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Auto-detect on page load
+window.addEventListener('load', getLocation);
+</script>
+</body>
+</html>
