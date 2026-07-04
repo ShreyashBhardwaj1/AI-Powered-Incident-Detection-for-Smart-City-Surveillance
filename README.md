@@ -1,12 +1,12 @@
-# ⚡ Smart City Sentinel
-### AI-Powered Incident Detection & Emergency Response Dispatch for Smart Cities
+# ⚡ AI-Powered Incident Detection for Smart City Surveillance
+### Major Graduation Project — AI-Powered Incident Detection & Emergency Response Dispatch for Smart Cities
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![YOLOv11](https://img.shields.io/badge/YOLOv11-Ultralytics-blue?style=for-the-badge&logo=yolo)](https://github.com/ultralytics/ultralytics)
 [![Leaflet](https://img.shields.io/badge/Leaflet-JS-green?style=for-the-badge&logo=leaflet)](https://leafletjs.com/)
 [![ReportLab](https://img.shields.io/badge/ReportLab-PDF-orange?style=for-the-badge)](https://www.reportlab.com/)
 
-**Smart City Sentinel** is a state-of-the-art AI-powered incident detection and emergency response system. It automates city surveillance by detecting critical public safety incidents (fires, road accidents, flooding, public disturbances, road damage, and illegal dumping) in real time using Computer Vision, logging the data, locating nearest emergency services (Hospitals & Police), generating official PDF reports, and broadcasting instant email alerts to authorities.
+**AI-Powered Incident Detection for Smart City Surveillance** is a state-of-the-art AI-powered incident detection and emergency response system. It automates city surveillance by detecting critical public safety incidents (fires, road accidents, flooding, public disturbances, road damage, and illegal dumping) in real time using Computer Vision, logging the data, locating nearest emergency services (Hospitals & Police), generating official PDF reports, and broadcasting instant email alerts to authorities.
 
 ---
 
